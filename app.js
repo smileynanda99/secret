@@ -4,7 +4,9 @@ const express = require("express");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
-const encryption = require("mongoose-encryption");
+// const encryption = require("mongoose-encryption");
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 const port = 3000;
 
@@ -21,7 +23,7 @@ const userSchema = new mongoose.Schema({
 });
 
 
-userSchema.plugin(encryption, { secret: process.env.SECRETS, encryptedFields: ['password'] });
+// userSchema.plugin(encryption, { secret: process.env.SECRETS, encryptedFields: ['password'] });
 const User = new mongoose.model("User", userSchema);
 
 app.get("/", (req, res) => {
@@ -44,17 +46,25 @@ app.get("/register", (req, res) => {
 });
 
 app.post("/register", (req, res) => {
-    const user = new User({
-        email: req.body.username,
-        password: req.body.password
-    })
-    user.save((err) => {
+
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
         if (err) {
             console.log(err);
         } else {
-            res.render("secrets");
+            const user = new User({
+                email: req.body.username,
+                password: hash
+            })
+            user.save((err) => {
+                if (err) {
+                    console.log(err);
+                } else {
+                    res.render("secrets");
+                }
+            });
         }
     });
+
 });
 
 app.post("/login", (req, res) => {
@@ -66,15 +76,21 @@ app.post("/login", (req, res) => {
             console.log(err);
         } else {
             if (foundUser) {
-                if (foundUser.password === pass) {
-                    res.render("secrets");
-                } else {
-                    res.render("login", {
-                        helpEmail: "",
-                        helpPassword: "Wrong Password!"
-                    });
-                    console.log("Wrong Password");
-                }
+                bcrypt.compare(pass, foundUser.password, function(err, result) {
+                    if (err) {
+                        console.log(err);
+                    } else {
+                        if (result == true) {
+                            res.render("secrets");
+                        } else {
+                            res.render("login", {
+                                helpEmail: "",
+                                helpPassword: "Wrong Password!"
+                            });
+                            console.log("Wrong Password");
+                        }
+                    }
+                });
             } else {
                 res.render("login", {
                     helpEmail: "User is not exist!",
